@@ -1,4 +1,4 @@
-name: Version Bump on Release
+name: Sync Version on Release
 
 on:
   release:
@@ -23,15 +23,13 @@ jobs:
         run: |
           echo "RELEASE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
           VERSION="${{ github.event.release.tag_name }}"
-          VERSION="${VERSION#v}"
+          VERSION="${VERSION#v}"   # Remove leading 'v' if present
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      - name: Calculate next patch version
-        id: bump_version
+      - name: Set next version to released version (no increment)
+        id: set_version
         run: |
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          PATCH=$((PATCH + 1))
-          NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+          NEXT_VERSION="$VERSION"
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
 
       - name: Update package.json version
@@ -39,10 +37,10 @@ jobs:
           jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json
           mv package.tmp.json package.json
 
-      - name: Commit and push version bump
+      - name: Commit and push version sync
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "chore: bump version to ${{ env.NEXT_VERSION }} after release [skip ci]"
+          commit_message: "chore: sync version to ${{ env.NEXT_VERSION }} on release [skip ci]"
           author_name: github-actions[bot]
           author_email: github-actions[bot]@users.noreply.github.com
           branch: main

@@ -1,0 +1,47 @@
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get released version
+      id: get_version
+      run: |
+        RELEASE_TAG=${{ github.event.release.tag_name }}
+        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+        # Remove leading 'v' if present
+        VERSION="${RELEASE_TAG#v}"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Calculate next patch version
+      id: bump_version
+      run: |
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+        PATCH=$((PATCH + 1))
+        NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+        echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+
+    - name: Update package.json version field
+      run: |
+        jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json && mv package.tmp.json package.json
+
+    - name: Commit and push version bump
+      run: |
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        git add package.json
+        git commit -m "chore: bump version to $NEXT_VERSION after release [skip ci]"
+        git push origin main

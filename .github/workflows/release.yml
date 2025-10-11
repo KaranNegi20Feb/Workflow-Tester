@@ -12,33 +12,37 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        ref: main
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
 
-    - name: Ensure main branch and tracking
-      run: |
-        git branch --show-current
-        git checkout -B main origin/main
+      - name: Get released version
+        id: get_version
+        run: |
+          echo "RELEASE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-    - name: Verify branches and remotes
-      run: |
-        git branch -vv
-        git remote -v
+      - name: Calculate next patch version
+        id: bump_version
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          PATCH=$((PATCH + 1))
+          NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
 
-    - name: Set up git for commit
-      run: |
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git config user.name "github-actions[bot]"
+      - name: Update package.json version
+        run: |
+          jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json
+          mv package.tmp.json package.json
 
-    - name: Commit bump
-      run: |
-        git add package.json
-        git commit -m "chore: bump version to $NEXT_VERSION after release [skip ci]" || echo "No changes to commit"
-
-    - name: Push commit to main
-      run: |
-        git push --set-upstream origin main
-
+      - name: Commit and push version bump
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: chore: bump version to ${{ env.NEXT_VERSION }} after release [skip ci]
+          author_name: github-actions[bot]
+          author_email: github-actions[bot]@users.noreply.github.com
+          branch: main

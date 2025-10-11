@@ -18,40 +18,27 @@ jobs:
         fetch-depth: 0
         ref: main
 
-    - name: Ensure local main branch tracks origin/main
+    - name: Ensure main branch and tracking
       run: |
+        git branch --show-current
         git checkout -B main origin/main
 
-    - name: Get released version
-      id: get_version
+    - name: Verify branches and remotes
       run: |
-        RELEASE_TAG=${{ github.event.release.tag_name }}
-        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
-        VERSION="${RELEASE_TAG#v}"
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-    - name: Calculate next patch version
-      id: bump_version
-      run: |
-        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-        PATCH=$((PATCH + 1))
-        NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
-        echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
-
-    - name: Update package.json version field
-      run: |
-        jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json && mv package.tmp.json package.json
+        git branch -vv
+        git remote -v
 
     - name: Set up git for commit
       run: |
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git config user.name "github-actions[bot]"
 
-    - name: Commit version bump
+    - name: Commit bump
       run: |
         git add package.json
         git commit -m "chore: bump version to $NEXT_VERSION after release [skip ci]" || echo "No changes to commit"
 
     - name: Push commit to main
       run: |
-        git push origin main
+        git push --set-upstream origin main
+

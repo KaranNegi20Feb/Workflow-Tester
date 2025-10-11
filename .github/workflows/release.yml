@@ -1,4 +1,4 @@
-name: Version Bump on Release
+name: Sync Version on Release
 
 on:
   release:
@@ -8,47 +8,39 @@ permissions:
   contents: write
 
 jobs:
-  bump-version:
+  sync-version:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        ref: main
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
 
-    - name: Get released version
-      id: get_version
-      run: |
-        RELEASE_TAG=${{ github.event.release.tag_name }}
-        echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
-        # Remove leading 'v' if present
-        VERSION="${RELEASE_TAG#v}"
-        echo "VERSION=$VERSION" >> $GITHUB_ENV
+      - name: Get released version
+        id: get_version
+        run: |
+          echo "RELEASE_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"   # Remove leading 'v' if present
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-    - name: Calculate next patch version
-      id: bump_version
-      run: |
-        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-        PATCH=$((PATCH + 1))
-        NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
-        echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
+      - name: Set next version to released version (no increment)
+        id: set_version
+        run: |
+          NEXT_VERSION="$VERSION"
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
 
-    - name: Update package.json version field
-      run: |
-        jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json && mv package.tmp.json package.json
+      - name: Update package.json version
+        run: |
+          jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json
+          mv package.tmp.json package.json
 
-    - name: Set up git for commit
-      run: |
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git config user.name "github-actions[bot]"
-
-    - name: Commit version bump
-      run: |
-        git add package.json
-        git commit -m "chore: bump version to $NEXT_VERSION after release [skip ci]" || echo "No changes to commit"
-
-    - name: Push commit to main
-      run: |
-        git push origin main
+      - name: Commit and push version sync
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore: sync version to ${{ env.NEXT_VERSION }} on release [skip ci]"
+          author_name: github-actions[bot]
+          author_email: github-actions[bot]@users.noreply.github.com
+          branch: main

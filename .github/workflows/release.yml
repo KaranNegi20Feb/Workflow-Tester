@@ -12,26 +12,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Create and switch to main branch
-      run: |
-        git checkout -b main || git checkout main
-        git branch -u origin/main main
+      - name: Create and switch to main branch
+        run: |
+          git checkout -b main || git checkout main
+          git branch -u origin/main main
 
-    - name: Set up git for commit
-      run: |
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git config user.name "github-actions[bot]"
+      - name: Get released version
+        id: get_version
+        run: |
+          RELEASE_TAG=${{ github.event.release.tag_name }}
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+          VERSION="${RELEASE_TAG#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-    - name: Commit version bump
-      run: |
-        git add package.json
-        git commit -m "chore: bump version to $NEXT_VERSION after release [skip ci]" || echo "No changes to commit"
+      - name: Calculate next patch version
+        id: bump_version
+        run: |
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          PATCH=$((PATCH + 1))
+          NEXT_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
 
-    - name: Push commit to main
-      run: |
-        git push origin main
+      - name: Update package.json version field
+        run: |
+          jq --arg ver "$NEXT_VERSION" '.version = $ver' package.json > package.tmp.json && mv package.tmp.json package.json
+
+      - name: Set up git for commit
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Commit version bump
+        run: |
+          git add package.json
+          git commit -m "chore: bump version to $NEXT_VERSION after release [skip ci]" || echo "No changes to commit"
+
+      - name: Push commit to main
+        run: |
+          git push origin main

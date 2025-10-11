@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  bump-version:
+  sync-version:
     runs-on: ubuntu-latest
 
     steps:
